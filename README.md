@@ -1,3 +1,2 @@
-**python servidor.py**
-
-**python cliente.py**
+python servidor.py
+python cliente.py
