@@ -1,7 +1,8 @@
 import socket
 import threading
 
-clientes = {}  # id: (conn, nome)
+clientes = {} 
+registro_nomes = {}
 
 def broadcast(mensagem, remetente_id=None):
     for cid, (conn, nome) in clientes.items():
@@ -20,15 +21,47 @@ def enviar_para_cliente(destino_id, mensagem):
             pass
 
 def handle_cliente(conn, addr):
-    conn.send("Digite seu ID: ".encode())
-    id_cliente = int(conn.recv(1024).decode())
-    
-    conn.send("Digite seu nome: ".encode())
-    nome = conn.recv(1024).decode()
+    try:
+        conn.send("Digite seu ID: ".encode())
+        id_cliente = int(conn.recv(1024).decode())
 
-    clientes[id_cliente] = (conn, nome)
-    print(f"[+] {nome} conectado com ID {id_cliente} ({addr})")
-    conn.send(f"Bem-vindo, {nome}!\n".encode())
+        conn.send("Digite seu nome: ".encode())
+        nome = conn.recv(1024).decode()
+
+        registro_nomes[id_cliente] = nome
+        clientes[id_cliente] = (conn, nome)
+
+        print(f"[+] {nome} (ID {id_cliente}) conectado.")
+
+        # Enviar lista de usuários online/offline
+        status_msg = "\n--- STATUS DOS USUÁRIOS ---\n"
+        for cid, nome_reg in registro_nomes.items():
+            status = "Online" if cid in clientes else "Offline"
+            status_msg += f"{nome_reg} (ID {cid}): {status}\n"
+        status_msg += "---------------------------\n"
+        conn.send(status_msg.encode())
+
+        while True:
+            msg = conn.recv(1024).decode()
+
+            if msg.startswith("@"):
+                try:
+                    parte = msg.split(":", 1)
+                    destino_id = int(parte[0][1:])
+                    conteudo = parte[1]
+                    enviar_para_cliente(destino_id, f"{nome} (privado): {conteudo}")
+                except:
+                    conn.send("Erro no formato da mensagem privada.\n".encode())
+            else:
+                broadcast(f"{nome}: {msg}", remetente_id=id_cliente)
+
+    except Exception as e:
+        print(f"[!] Cliente ID {id_cliente} desconectou. {e}")
+    finally:
+        if id_cliente in clientes:
+            del clientes[id_cliente]
+        conn.close()
+
 
     while True:
         try:
